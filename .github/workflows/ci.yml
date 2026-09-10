@@ -39,8 +39,11 @@ jobs:
         if: matrix.sdk == 'stable'
         run: dart format --output=none --set-exit-if-changed .
 
+      # Analyzer diagnostics shift between SDK releases the same way formatting
+      # does: 3.6.0 reports deprecated_member_use_from_same_package where stable
+      # no longer does, so only the stable leg treats infos as fatal.
       - name: Analyze
-        run: dart analyze --fatal-infos
+        run: dart analyze ${{ matrix.sdk == 'stable' && '--fatal-infos' || '' }}
 
       - name: Run tests
         run: dart test
