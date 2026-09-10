@@ -1,0 +1,4 @@
+# Its own package with its own dependencies; ships on GitHub, not in the
+# published archive - otherwise pub validation flags its imports as missing
+# from this package pubspec.
+*

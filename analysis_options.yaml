@@ -1,6 +1,9 @@
 include: package:lints/recommended.yaml
 
 analyzer:
+  exclude:
+    # Its own package with its own dependencies, resolved by its own pub get.
+    - tool/email_comparison/**
   language:
     strict-casts: true
     strict-raw-types: true

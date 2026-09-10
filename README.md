@@ -21,6 +21,12 @@ expression wrappers with none of the check-digit arithmetic, IBAN country
 registry, TLD-aware domain validation, or locale-aware number and date parsing
 that Commons Validator has accumulated over twenty years.
 
+Email is the one place that gap is measured rather than asserted:
+[`tool/email_comparison/`](tool/email_comparison/) runs the same 52-case corpus
+through this package and the two most-used email validators on pub.dev, scoring
+52/52 against 50/52 and 45/52. The difference is TLD validation - nothing else
+checks whether the TLD exists, so `user@gmail.con` is accepted everywhere else.
+
 ## Install
 
 ```yaml

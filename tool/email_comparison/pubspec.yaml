@@ -1,0 +1,15 @@
+name: email_comparison
+description: >-
+  Compares this package's EmailValidator against the email validators already on
+  pub.dev. Its own package, so the versions under test are pinned here and
+  commons_validator is pulled from pub.dev rather than the parent checkout.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  commons_validator: ^0.1.0
+  email_validator: ^3.0.0
+  string_validator: ^1.2.0
