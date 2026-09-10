@@ -27,6 +27,8 @@ abstract class _IntegralValidator extends AbstractNumberValidator<int> {
 
   @override
   int? processParsedValue(NumberParseResult result, NumberSpec spec) {
+    // An exponent beyond maxDecimalScale cannot fit any integer type.
+    if (result.magnitude != NumberMagnitude.normal) return null;
     if (!fitsInJavaLong(result.value)) return null;
     final value = result.value.toBigInt();
     if (value < minimum || value > maximum) return null;

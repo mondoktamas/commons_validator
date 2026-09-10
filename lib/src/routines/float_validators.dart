@@ -58,7 +58,9 @@ class FloatValidator extends AbstractNumberValidator<double> {
 
   @override
   double? processParsedValue(NumberParseResult result, NumberSpec spec) {
-    final value = result.value.toDouble();
+    // doubleValue, not value.toDouble(): the latter flushes subnormals to zero,
+    // and is not built at all for an extreme exponent.
+    final value = result.doubleValue;
     if (value > 0) {
       if (value == double.infinity) return double.infinity;
       if (value < minFloat || value > maxFloat) return null;
@@ -103,7 +105,7 @@ class DoubleValidator extends AbstractNumberValidator<double> {
 
   @override
   double? processParsedValue(NumberParseResult result, NumberSpec spec) =>
-      result.value.toDouble();
+      result.doubleValue;
 
   /// Whether [value] is between [min] and [max] inclusive.
   bool isInRange(double value, double min, double max) =>

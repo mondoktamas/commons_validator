@@ -258,7 +258,9 @@ class CalendarFields implements Comparable<CalendarFields> {
     final normalized = fixedDate - firstWeekStart;
     if (normalized >= 0) return normalized ~/ 7 + 1;
     // Floor division, so a day before the first week start gives 0 or less.
-    return ((normalized + 1) ~/ 7) - (normalized % 7 == 0 ? 0 : 1) + 1;
+    // Dart's `%` is never negative, so the usual `n % 7 == 0` trick silently
+    // fails on exact multiples: -7 would come out as 1 rather than 0.
+    return -((-normalized + 6) ~/ 7) + 1;
   }
 
   @override

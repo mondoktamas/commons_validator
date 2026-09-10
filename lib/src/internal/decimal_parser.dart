@@ -18,19 +18,63 @@ import 'package:decimal/decimal.dart';
 import 'number_spec.dart';
 import 'unicode_digits.dart';
 
+/// The largest decimal scale [parseDecimal] will materialise.
+///
+/// `Decimal` is backed by a rational, so a scale of n means building a BigInt
+/// with n digits: `1E20000000` would take minutes and hundreds of megabytes.
+/// Java never pays that, because `BigDecimal` keeps an `int` scale alongside its
+/// unscaled value and only expands on demand.
+///
+/// The cost is roughly quadratic - measured at 3 ms for a scale of 1024, 22 ms
+/// for 4096 and 87 ms for 8192 - so the bound is deliberately tight. No real
+/// decimal input has a scale over a thousand: a `double` tops out around
+/// 1e-324, and monetary and scientific data never come close.
+const int maxDecimalScale = 1024;
+
+/// Whether a parsed value fitted inside [maxDecimalScale].
+enum NumberMagnitude {
+  /// The value was materialised exactly.
+  normal,
+
+  /// The exponent was too large to materialise; the value is beyond any finite
+  /// double.
+  overflow,
+
+  /// The exponent was too small to materialise; the value rounds to zero.
+  underflow,
+}
+
 /// The outcome of a successful parse.
 class NumberParseResult {
   /// Creates a result.
   const NumberParseResult({
     required this.value,
+    required this.doubleValue,
     required this.consumed,
     required this.sawFractionDigits,
     required this.sawExponent,
     required this.negative,
+    this.magnitude = NumberMagnitude.normal,
   });
 
   /// The parsed value, exact to arbitrary precision.
+  ///
+  /// Zero when [magnitude] is not [NumberMagnitude.normal], in which case the
+  /// real value was too extreme to build and the caller must decide what to do.
   final Decimal value;
+
+  /// The value as a `double`, always exact to double precision.
+  ///
+  /// Computed straight from the digit string with [double.parse] rather than
+  /// through [value], for two reasons: `Decimal.toDouble` silently flushes
+  /// subnormals to zero (`1E-320` becomes `0.0` where Java gives `1.0E-320`),
+  /// and this stays correct for the extreme exponents [value] declines to
+  /// materialise - `double.parse` answers infinity or zero for those in
+  /// microseconds, exactly as Java does.
+  final double doubleValue;
+
+  /// Whether [value] is exact, or stood in for something unrepresentable.
+  final NumberMagnitude magnitude;
 
   /// How many characters were consumed, which is `ParsePosition.getIndex()`.
   final int consumed;
@@ -97,7 +141,8 @@ NumberParseResult? parseDecimal(String input, NumberSpec spec) {
       digits.write(digit);
       integerDigits++;
       index++;
-    } else if (spec.groupingSeparator.isNotEmpty &&
+    } else if (spec.groupingUsed &&
+        spec.groupingSeparator.isNotEmpty &&
         integerDigits > 0 &&
         input.startsWith(spec.groupingSeparator, index)) {
       // Java does not check grouping placement, so `1,2,3,4` parses as 1234.
@@ -169,6 +214,29 @@ NumberParseResult? parseDecimal(String input, NumberSpec spec) {
     index += suffix.length;
   }
 
+  // The double is read straight from the digits, so it is right even where the
+  // Decimal below is not built.
+  var doubleValue = double.parse(
+      '${negative ? '-' : ''}${digits}e${exponent - fractionDigits}');
+  if (spec.multiplier != 1) doubleValue /= spec.multiplier;
+
+  // Refuse to materialise an absurd scale. Everything else about the parse is
+  // already known, so report the magnitude and let the leaf validator decide -
+  // the double-returning ones can still answer infinity or zero, as Java does.
+  final scale = fractionDigits - exponent;
+  if (scale.abs() > maxDecimalScale) {
+    return NumberParseResult(
+      value: Decimal.zero,
+      doubleValue: doubleValue,
+      consumed: index,
+      sawFractionDigits: sawFraction || (sawExponent && exponent < 0),
+      sawExponent: sawExponent,
+      negative: negative,
+      magnitude:
+          scale < 0 ? NumberMagnitude.overflow : NumberMagnitude.underflow,
+    );
+  }
+
   var value = _buildDecimal(
     digits.toString(),
     fractionDigits: fractionDigits,
@@ -181,6 +249,7 @@ NumberParseResult? parseDecimal(String input, NumberSpec spec) {
 
   return NumberParseResult(
     value: value,
+    doubleValue: doubleValue,
     consumed: index,
     sawFractionDigits: sawFraction || (sawExponent && exponent < 0),
     sawExponent: sawExponent,

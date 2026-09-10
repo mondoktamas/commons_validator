@@ -32,6 +32,12 @@ class BigDecimalValidator extends AbstractNumberValidator<Decimal> {
 
   @override
   Decimal? processParsedValue(NumberParseResult result, NumberSpec spec) {
+    // Deliberate divergence: Java answers `1E+20000000` here, because
+    // BigDecimal stores an unscaled value plus an int scale and never expands.
+    // `Decimal` is rational-backed, so materialising that costs minutes and
+    // hundreds of megabytes - a denial of service on any untrusted input. See
+    // maxDecimalScale.
+    if (result.magnitude != NumberMagnitude.normal) return null;
     final scale = determineScale(spec);
     return scale >= 0 ? truncateToScale(result.value, scale) : result.value;
   }
@@ -69,6 +75,10 @@ class BigIntegerValidator extends AbstractNumberValidator<BigInt> {
 
   @override
   BigInt? processParsedValue(NumberParseResult result, NumberSpec spec) {
+    // Rejected rather than expanded. Upstream is no better here: Java's
+    // BigIntegerValidator materialises `1E1000000` into a 1,000,001-digit
+    // BigInteger rather than declining.
+    if (result.magnitude != NumberMagnitude.normal) return null;
     final value = result.value;
     // Upstream guards with `signum() != 0` because BigDecimal.ZERO historically
     // misreported its stripped scale; comparing against zero here is equivalent.

@@ -12,3 +12,6 @@ pubspec.lock
 *.iml
 .vscode/
 .DS_Store
+
+# Stray tool logs
+firebase-debug.log

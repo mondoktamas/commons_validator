@@ -42,6 +42,7 @@ class NumberSpec {
     required this.maximumFractionDigits,
     required this.formatType,
     required this.locale,
+    this.groupingUsed = true,
     this.parseIntegerOnly = false,
   });
 
@@ -102,7 +103,17 @@ class NumberSpec {
   /// The character separating the integer and fraction parts.
   final String decimalSeparator;
 
-  /// The grouping separator, which parsing accepts anywhere between digits.
+  /// Whether the pattern uses grouping at all.
+  ///
+  /// Java's `DecimalFormat.isGroupingUsed()` is false for a pattern without a
+  /// `,`, and parsing then *stops* at a separator rather than skipping it: under
+  /// `0.00`, `1,234` yields 1 with `,234` left over, which a strict validator
+  /// rejects. Accepting the separator regardless would silently widen every
+  /// comma-less pattern.
+  final bool groupingUsed;
+
+  /// The grouping separator, which parsing accepts between digits only when
+  /// [groupingUsed] is set.
   ///
   /// Often a non-breaking space: U+202F for `fr`, U+00A0 for `ru`. This is why
   /// the port trims with `javaTrim` rather than [String.trim].
@@ -166,6 +177,7 @@ class NumberSpec {
         maximumFractionDigits: digits,
         formatType: formatType,
         locale: locale,
+        groupingUsed: groupingUsed,
         parseIntegerOnly: parseIntegerOnly,
       );
 
@@ -184,6 +196,7 @@ class NumberSpec {
         maximumFractionDigits: maximumFractionDigits,
         formatType: formatType,
         locale: locale,
+        groupingUsed: groupingUsed,
         parseIntegerOnly: value,
       );
 
@@ -224,6 +237,7 @@ class NumberSpec {
       maximumFractionDigits: maximumFractionDigits,
       formatType: formatType,
       locale: locale,
+      groupingUsed: groupingUsed,
       parseIntegerOnly: parseIntegerOnly,
     );
   }
@@ -273,6 +287,7 @@ class NumberSpec {
       maximumFractionDigits: parsed.maxFractionDigits,
       formatType: formatType,
       locale: locale,
+      groupingUsed: parsed.groupingUsed,
       parseIntegerOnly: parseIntegerOnly,
     );
   }
@@ -305,6 +320,7 @@ class _PatternParts {
     required this.multiplier,
     required this.minFractionDigits,
     required this.maxFractionDigits,
+    required this.groupingUsed,
   });
 
   final String prefix;
@@ -314,6 +330,7 @@ class _PatternParts {
   final int multiplier;
   final int minFractionDigits;
   final int maxFractionDigits;
+  final bool groupingUsed;
 
   /// Splits a pattern into its positive and optional negative subpatterns and
   /// reads the affixes and digit counts out of each.
@@ -329,6 +346,7 @@ class _PatternParts {
       multiplier: positive.multiplier,
       minFractionDigits: positive.minFraction,
       maxFractionDigits: positive.maxFraction,
+      groupingUsed: positive.groupingUsed,
     );
   }
 
@@ -352,6 +370,7 @@ class _PatternParts {
     var multiplier = 1;
     var minFraction = 0;
     var maxFraction = 0;
+    var groupingUsed = false;
     var seenNumber = false;
     var afterNumber = false;
     var inFraction = false;
@@ -367,8 +386,15 @@ class _PatternParts {
           !quoted && (c == '#' || c == '0' || c == '.' || c == ',' || c == 'E');
       if (isNumeric) {
         seenNumber = true;
-        if (c == '.') {
+        if (c == ',') {
+          groupingUsed = true;
+        } else if (c == '.') {
           inFraction = true;
+        } else if (c == 'E') {
+          // The exponent's own digits are not fraction digits. Java reports
+          // min=2 max=2 for `0.00E00`; counting the exponent would give 4 and 4,
+          // and determineScale would then truncate to four decimal places.
+          inFraction = false;
         } else if (inFraction && c == '0') {
           minFraction++;
           maxFraction++;
@@ -392,6 +418,7 @@ class _PatternParts {
       multiplier: multiplier,
       minFraction: minFraction,
       maxFraction: maxFraction,
+      groupingUsed: groupingUsed,
     );
   }
 }
@@ -403,6 +430,7 @@ class _OneSubpattern {
     required this.multiplier,
     required this.minFraction,
     required this.maxFraction,
+    required this.groupingUsed,
   });
 
   final String prefix;
@@ -410,4 +438,5 @@ class _OneSubpattern {
   final int multiplier;
   final int minFraction;
   final int maxFraction;
+  final bool groupingUsed;
 }

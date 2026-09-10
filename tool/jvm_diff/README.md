@@ -7,7 +7,7 @@ the mechanical validators, and it is why the Java clone at
 
 ## Results so far
 
-Across every corpus: **249,477 inputs, 7 disagreements** — the `ja_JP` currency
+Across every corpus: **260,526 inputs, 7 disagreements** — the `ja_JP` currency
 symbol and one exponent-in-a-year-field input, both documented in the package
 README.
 
@@ -82,7 +82,8 @@ line plus the result:
 | `Diff.java` | `dart_diff.dart` | check digits |
 | `Diff3.java` | `dart_diff3.dart` | regex, code and financial validators |
 | `Diff4.java` | `dart_diff4.dart` | domain, email, URL, IP |
-| `Diff5.java` | `dart_diff5.dart` | number validators, one locale |
+| `Diff5.java` | `dart_diff5.dart` | number validators, one locale, incl. scientific patterns |
+| `Diff5F.java` | `dart_diff5f.dart` | `format()` across locales |
 | `Diff5L.java` | `dart_diff5l.dart` | number validators, several locales |
 | `Diff6.java` | `dart_diff6.dart` | date and time comparisons |
 | `Diff6P.java` | `dart_diff6p.dart` | date and time parsing |

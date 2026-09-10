@@ -43,10 +43,17 @@ int _adapt(int delta, int numPoints, bool firstTime) {
 int _encodeDigit(int d) => d + 22 + (d < 26 ? 75 : 0);
 
 /// The digit value of basic code point [cp], or -1 if it is not a digit.
+///
+/// RFC 3492's reference decoder writes these as `cp - 48 < 10`, which is only
+/// correct because its arithmetic is *unsigned*: for `cp` below `'0'` the
+/// subtraction wraps to a huge value and the test fails. Dart's ints are signed,
+/// so the same expression is true for everything below `'9'` - it would accept
+/// space, `!`, `+`, `,`, `-`, `.` and `/` as digits and decode silent garbage
+/// instead of throwing. Hence the explicit ranges.
 int _decodeDigit(int cp) {
-  if (cp - 0x30 < 0x0A) return cp - 0x16; // '0'-'9' -> 26-35
-  if (cp - 0x41 < 26) return cp - 0x41; // 'A'-'Z' -> 0-25
-  if (cp - 0x61 < 26) return cp - 0x61; // 'a'-'z' -> 0-25
+  if (cp >= 0x30 && cp <= 0x39) return cp - 0x16; // '0'-'9' -> 26-35
+  if (cp >= 0x41 && cp <= 0x5A) return cp - 0x41; // 'A'-'Z' -> 0-25
+  if (cp >= 0x61 && cp <= 0x7A) return cp - 0x61; // 'a'-'z' -> 0-25
   return -1;
 }
 

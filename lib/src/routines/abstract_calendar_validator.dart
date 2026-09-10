@@ -135,7 +135,15 @@ abstract class AbstractCalendarValidator<T> {
       // A `yy` field handed more than two digits is read literally by Java, with
       // no century pivot at all: `0001-01-01` under `yy-MM-dd` is year 1, not
       // 2001. Widening the pattern makes `intl` agree and disables the pivot.
-      if (_hasTwoDigitYear(pattern) && _yearRunLength(pattern, value) != 2) {
+      //
+      // Only act when the digit count is actually known. A run length of -1
+      // means "could not tell", and the pivot has to stay: treating -1 like
+      // "not two digits" silently disabled the pivot for every pattern whose
+      // year is not the first field, which is most of them - `MM/dd/yy` and
+      // `dd/MM/yy` included.
+      final yearDigits =
+          _hasTwoDigitYear(pattern) ? _yearRunLength(pattern, value) : -1;
+      if (yearDigits > 0 && yearDigits != 2) {
         effectiveFormat = DateFormat(_widenYearField(pattern), format.locale);
         pivotPattern = null;
       }
@@ -154,7 +162,12 @@ abstract class AbstractCalendarValidator<T> {
         ? _parseExactly(effectiveFormat, effectiveValue)
         : _parseLongestPrefix(effectiveFormat, effectiveValue);
     if (parsed == null) return null;
-    return _applyTwoDigitYearPivot(parsed, pivotPattern);
+    final pivoted = _applyTwoDigitYearPivot(parsed, pivotPattern);
+    // The Gregorian era has no year 0 - 1 BC is followed by 1 AD - and Java's
+    // non-lenient GregorianCalendar rejects it. `intl` will happily hand one
+    // back, so `0000-10-28` has to be refused here.
+    if (pivoted != null && pivoted.year == 0) return null;
+    return pivoted;
   }
 
   static DateTime? _parseExactly(DateFormat format, String value) {
@@ -293,45 +306,98 @@ abstract class AbstractCalendarValidator<T> {
 
   /// Re-pivots a two-digit year onto Java's moving window.
   ///
-  /// `SimpleDateFormat` resolves `yy` into the 100 years starting 80 before the
-  /// formatter was created, so in 2026 that is 1946-2045. `intl` instead uses a
-  /// fixed 1969-2068 window, which would put 1946 in the wrong century.
+  /// `SimpleDateFormat` resolves `yy` into the hundred years beginning at the
+  /// *instant* eighty years before the formatter was created, and the resolved
+  /// **date** has to fall inside it - not merely the year. Measured against
+  /// OpenJDK on 2026-09-10, `46` gives 2046 while `47` gives 1947, because
+  /// 1946-01-01 falls before the 1946-09-10 window start. A year-only
+  /// approximation gets that boundary wrong, and which side it lands on shifts
+  /// with today's month and day.
+  ///
+  /// `intl` instead uses a fixed 1969-2068 window, so this has to be applied by
+  /// hand either way.
   static DateTime? _applyTwoDigitYearPivot(DateTime? parsed, String? pattern) {
     if (parsed == null || pattern == null) return parsed;
     if (!_hasTwoDigitYear(pattern)) return parsed;
-    final now = DateTime.now().year;
-    final windowStart = now - 80;
+
+    final now = DateTime.now();
+    final windowStart = DateTime.utc(now.year - 80, now.month, now.day);
     final twoDigits = parsed.year % 100;
-    var year = windowStart - (windowStart % 100) + twoDigits;
-    if (year < windowStart) year += 100;
-    if (year == parsed.year) return parsed;
-    return DateTime.utc(
-      year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-    );
+
+    DateTime withYear(int year) => DateTime.utc(
+          year,
+          parsed.month,
+          parsed.day,
+          parsed.hour,
+          parsed.minute,
+          parsed.second,
+          parsed.millisecond,
+        );
+
+    var candidate =
+        withYear(windowStart.year - (windowStart.year % 100) + twoDigits);
+    if (candidate.isBefore(windowStart)) {
+      candidate = withYear(candidate.year + 100);
+    }
+    return candidate;
   }
 
-  /// How many digits [value] actually supplies for [pattern]'s year field.
+  /// How many digits [value] actually supplies for [pattern]'s `yy` field.
   ///
-  /// Returns -1 when it cannot be determined, which leaves the pivot in place.
+  /// Returns -1 when it cannot be determined, in which case the caller keeps the
+  /// century pivot rather than guessing.
+  ///
+  /// The year need not be the first field: pattern and input are walked in step
+  /// through the preceding literals and numeric runs, so `MM/dd/yy` against
+  /// `12/31/99` correctly reports two digits.
   static int _yearRunLength(String pattern, String value) {
-    final index = pattern.indexOf('yy');
-    if (index < 0) return -1;
-    // Match the literal text before the year field, so the offset into the
-    // input is known.
-    final prefix = pattern.substring(0, index);
-    if (prefix.contains(RegExp('[a-zA-Z]'))) return -1; // fields precede it
-    if (!value.startsWith(prefix)) return -1;
-    var end = prefix.length;
-    while (end < value.length && _isDigit(value.codeUnitAt(end))) {
-      end++;
+    final yearIndex = pattern.indexOf('yy');
+    if (yearIndex < 0) return -1;
+
+    final runs = _numericRuns(pattern);
+
+    // Where numeric fields abut, Java honours the declared width exactly rather
+    // than reading greedily, so a `yy` there is always two digits: `yyMMdd`
+    // against `460330` is 2046-03-30, and against `20460330` it is invalid
+    // because `yy` takes `20` and `MM` then sees `46`. Measuring greedily here
+    // would widen the pattern and quietly accept both.
+    for (var i = 0; i < runs.length; i++) {
+      if (runs[i].start != yearIndex) continue;
+      final touchesPrevious = i > 0 && runs[i - 1].end == runs[i].start;
+      final touchesNext =
+          i + 1 < runs.length && runs[i + 1].start == runs[i].end;
+      if (touchesPrevious || touchesNext) {
+        return 2;
+      }
     }
-    return end - prefix.length;
+
+    var patternCursor = 0;
+    var valueCursor = 0;
+
+    for (final run in runs) {
+      // The literal text before this run must appear verbatim in the input.
+      final literal = pattern.substring(patternCursor, run.start);
+      if (literal.contains(RegExp('[a-zA-Z]'))) {
+        return -1; // a non-numeric field such as MMM; offsets are unknowable
+      }
+      if (!value.startsWith(literal, valueCursor)) return -1;
+      valueCursor += literal.length;
+
+      // Count the digits the input actually supplies for this run.
+      var digits = 0;
+      while (valueCursor + digits < value.length &&
+          _isDigit(value.codeUnitAt(valueCursor + digits))) {
+        digits++;
+      }
+      if (run.start == yearIndex) return digits;
+      if (digits == 0) return -1;
+
+      // Any earlier numeric field consumes at most its own width, so that the
+      // following literal lines up again.
+      valueCursor += digits < run.width ? digits : run.width;
+      patternCursor = run.end;
+    }
+    return -1;
   }
 
   /// Replaces a `yy` field with `yyyy`, so `intl` reads the year literally.

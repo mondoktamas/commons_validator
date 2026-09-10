@@ -39,6 +39,12 @@ String eval(String which, String v) {
           .parse(v, pattern: '#,##0', locale: locale)),
       'bigdec_pat' => s(BigDecimalValidator.getInstance()
           .parse(v, pattern: '#,##0.00', locale: locale)),
+      'bigdec_sci' => s(BigDecimalValidator.getInstance()
+          .parse(v, pattern: '0.00E00', locale: locale)),
+      'bigdec_sci2' => s(BigDecimalValidator.getInstance()
+          .parse(v, pattern: '0.###E0', locale: locale)),
+      'double_sci' => s(DoubleValidator.getInstance()
+          .parse(v, pattern: '#0.#####E0', locale: locale)),
       _ => throw ArgumentError(which),
     };
   } catch (e) {

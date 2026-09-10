@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Analyze and test (${{ matrix.sdk }})
+    # Only someone with write access can push, so pushes are safe to run on the
+    # local macOS runner. Pull requests — which anyone can open once this repo is
+    # public — stay on GitHub's disposable runners; a self-hosted runner would
+    # execute a stranger's code on a personal machine.
+    runs-on: ${{ github.event_name == 'push' && fromJSON('["self-hosted","macOS","ARM64"]') || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # `stable` catches new lints; 3.6.0 is the lower bound declared in
+        # pubspec.yaml, so a dependency that quietly needs a newer SDK fails here.
+        sdk: [stable, 3.6.0]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.sdk }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      # Formatting shifts between SDK releases, so only pin it to one of them.
+      - name: Verify formatting
+        if: matrix.sdk == 'stable'
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      - name: Run tests
+        run: dart test

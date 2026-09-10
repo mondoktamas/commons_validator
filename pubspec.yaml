@@ -1,7 +1,14 @@
 name: commons_validator
 description: A Dart port of the Apache Commons Validator routines - email, URL, domain, IP, IBAN, ISBN, ISIN, ISSN, credit card, check digit, number and date validators.
 version: 0.1.0
-repository: https://github.com/apache/commons-validator
+repository: https://github.com/mondoktamas/commons_validator
+issue_tracker: https://github.com/mondoktamas/commons_validator/issues
+topics:
+  - validation
+  - validator
+  - email
+  - iban
+  - check-digit
 
 environment:
   sdk: ^3.6.0

@@ -1,5 +1,9 @@
 # commons_validator
 
+[![pub package](https://img.shields.io/pub/v/commons_validator.svg?logo=dart&label=pub)](https://pub.dev/packages/commons_validator)
+[![pub points](https://img.shields.io/pub/points/commons_validator?label=pub%20points)](https://pub.dev/packages/commons_validator/score)
+[![ci](https://img.shields.io/github/actions/workflow/status/mondoktamas/commons_validator/ci.yml?branch=main&logo=github&label=commons_validator)](https://github.com/mondoktamas/commons_validator/actions/workflows/ci.yml)
+
 A Dart port of the validation routines from
 [Apache Commons Validator](https://commons.apache.org/proper/commons-validator/),
 covering email, URL, domain, IP, IBAN, ISBN, ISIN, ISSN, credit card, check
@@ -96,19 +100,20 @@ generated inputs through both implementations:
 | Domain, email, URL, IP | 46,892 | **0** |
 | `java.net.IDN.toASCII` (every BMP code point) | 130,240 | **0** |
 | RFC 2396 URI splitting | 568 | **0** |
-| Number validators, `en_US` | 1,148 | **0** |
+| Number validators, `en_US` (incl. scientific patterns) | 1,547 | **0** |
 | `format()`, seven locales | 1,372 | **0** |
 | Number validators, seven locales | 840 | 1 (CLDR data, below) |
 | Date and time comparisons | 3,024 | **0** |
-| Date and time parsing | 10,788 | 1 case (below) |
+| Date and time parsing | 21,438 | 1 case (below) |
 | `Calendar` week numbering | 11,692 | **0** |
 
-**249,477 inputs, 7 disagreements** in total, both documented below.
+**260,526 inputs, 7 disagreements** in total, both documented below.
 
 The corpora include every single-character substitution at every position,
 transpositions, truncations, control characters, NBSP, Arabic-Indic and
-fullwidth digits, and — for dates — every month/day combination across several
-years under four different week-rule settings.
+fullwidth digits, scientific number patterns, two-digit years in every field
+position, and — for dates — every month/day combination across several years
+under four different week-rule settings.
 
 ## Documented divergences
 
@@ -144,6 +149,26 @@ identity — has no equivalent at all.
 the rendering differs. Truncation still happens where Java truncates: a strict
 validator applies the pattern's scale with round-toward-zero, so `1234.567`
 under a two-decimal format is `1234.56`, not `1234.57`.
+
+### An extreme exponent is bounded, not materialised
+
+`java.math.BigDecimal` keeps an `int` scale beside its unscaled value, so Java
+parses `1E20000000` in microseconds and reports it as `1E+20000000`. Dart's
+`Decimal` is rational-backed, so representing that means building a
+twenty-million-digit integer — minutes of CPU and hundreds of megabytes, which
+is a denial of service on untrusted input.
+
+So a scale beyond ~1000 is not materialised:
+
+- `DoubleValidator` and `FloatValidator` still answer infinity or zero, exactly
+  as Java does, because the double is read straight from the digit string;
+- `BigDecimalValidator`, `BigIntegerValidator` and the integer validators return
+  null instead of a value.
+
+That last case is the divergence. It only affects exponents far past anything
+real — a `double` tops out near 1e±324. Note upstream is no better placed here:
+Java's `BigIntegerValidator` expands `1E1000000` into a 1,000,001-digit
+`BigInteger` rather than declining.
 
 ### `ja_JP` currency symbol
 

@@ -24,6 +24,9 @@ public class Diff5 {
                 case "percent":   return s(PercentValidator.getInstance().validate(v, (String) null, US));
                 case "int_pat":   return s(IntegerValidator.getInstance().validate(v, "#,##0", US));
                 case "bigdec_pat":return s(BigDecimalValidator.getInstance().validate(v, "#,##0.00", US));
+                case "bigdec_sci":return s(BigDecimalValidator.getInstance().validate(v, "0.00E00", US));
+                case "bigdec_sci2":return s(BigDecimalValidator.getInstance().validate(v, "0.###E0", US));
+                case "double_sci": return s(DoubleValidator.getInstance().validate(v, "#0.#####E0", US));
                 default: throw new IllegalArgumentException(which);
             }
         } catch (Exception e) { return "!" + e.getClass().getSimpleName(); }
