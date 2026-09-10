@@ -1,0 +1,17 @@
+name: publish
+
+# Publishing is authorized by pub.dev for this repository and tag pattern, using
+# a short-lived OIDC token rather than a stored credential. The `pub.dev`
+# environment requires a manual approval before the job runs, which stands in for
+# the y/N prompt that `dart pub publish` gives you interactively.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+jobs:
+  publish:
+    # Dart's official reusable workflow: checks out, runs `dart pub publish
+    # --dry-run`, then publishes. It declares `id-token: write` itself.
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      environment: pub.dev
