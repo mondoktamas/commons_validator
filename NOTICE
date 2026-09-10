@@ -1,0 +1,17 @@
+commons_validator (Dart)
+Copyright 2026 the commons_validator (Dart) authors
+
+This product is a derivative work of Apache Commons Validator, ported from Java
+to Dart. It is distributed under the Apache License, Version 2.0.
+
+The original work is:
+
+    Apache Commons Validator
+    Copyright 2002-2026 The Apache Software Foundation
+
+    This product includes software developed at
+    The Apache Software Foundation (https://www.apache.org/).
+
+Ported from Apache Commons Validator 1.11.1-SNAPSHOT (git 770f7846).
+Only the org.apache.commons.validator.routines packages are ported; see README.md
+for the list of ported classes and the documented behavioural divergences.

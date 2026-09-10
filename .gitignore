@@ -1,0 +1,14 @@
+# Dart / Pub
+.dart_tool/
+.packages
+build/
+doc/api/
+
+# A library package should not pin its dependents' versions.
+pubspec.lock
+
+# Editors and OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
